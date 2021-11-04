@@ -605,8 +605,20 @@ export class PreviewWeb<TFramework extends AnyFramework> {
 
         if (forceRemount && playFunction) {
           this.disableKeyListeners = true;
-          await runPhase('playing', () => playFunction(renderContext.storyContext));
-          await runPhase('played');
+          await runPhase('playing', async () => {
+            try {
+              await playFunction(renderContext.storyContext);
+              await runPhase('played');
+            } catch (error) {
+              if (error !== IGNORED_EXCEPTION) {
+                logger.error(error);
+                await runPhase('errored', () => {
+                  const { name, message, stack } = error;
+                  this.channel.emit(Events.STORY_THREW_EXCEPTION, { name, message, stack });
+                });
+              }
+            }
+          });
           this.disableKeyListeners = false;
           if (abortSignal.aborted) return;
         }
@@ -706,7 +718,8 @@ export class PreviewWeb<TFramework extends AnyFramework> {
 
   // renderException is used if we fail to render the story and it is uncaught by the app layer
   renderException(storyId: StoryId, error: Error) {
-    this.channel.emit(Events.STORY_THREW_EXCEPTION, error);
+    const { name, message, stack } = error;
+    this.channel.emit(Events.STORY_THREW_EXCEPTION, { name, message, stack });
     this.channel.emit(Events.STORY_RENDER_PHASE_CHANGED, { newPhase: 'errored', storyId });
 
     // Ignored exceptions exist for control flow purposes, and are typically handled elsewhere.

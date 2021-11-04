@@ -2,14 +2,14 @@ import global from 'global';
 import * as React from 'react';
 import ReactDOM from 'react-dom';
 import { useChannel, useParameter, useStorybookState } from '@storybook/api';
-import { STORY_RENDER_PHASE_CHANGED } from '@storybook/core-events';
+import { STORY_RENDER_PHASE_CHANGED, STORY_THREW_EXCEPTION } from '@storybook/core-events';
 import { AddonPanel, Link, Placeholder } from '@storybook/components';
 import { EVENTS, Call, CallStates, LogItem } from '@storybook/instrumenter';
 import { styled } from '@storybook/theming';
 
 import { StatusIcon } from './components/StatusIcon/StatusIcon';
 import { Subnav } from './components/Subnav/Subnav';
-import { Interaction } from './components/Interaction/Interaction';
+import { Exception, Interaction } from './components/Interaction/Interaction';
 
 const { FEATURES } = global;
 
@@ -25,6 +25,7 @@ interface InteractionsPanelProps {
   hasNext?: boolean;
   fileName?: string;
   hasException?: boolean;
+  caughtException?: Error;
   isPlaying?: boolean;
   calls: Map<string, any>;
   endRef?: React.Ref<HTMLDivElement>;
@@ -57,6 +58,7 @@ export const AddonPanelPure: React.FC<InteractionsPanelProps> = React.memo(
     hasNext,
     fileName,
     hasException,
+    caughtException,
     isPlaying,
     onStart,
     onPrevious,
@@ -97,6 +99,9 @@ export const AddonPanelPure: React.FC<InteractionsPanelProps> = React.memo(
           onClick={() => onInteractionClick(call.id)}
         />
       ))}
+      {caughtException?.message && !caughtException?.message.startsWith('ignoredException') && (
+        <Exception {...caughtException} />
+      )}
       <div ref={endRef} />
       {!isPlaying && interactions.length === 0 && (
         <Placeholder>
@@ -118,6 +123,7 @@ export const Panel: React.FC<AddonPanelProps> = (props) => {
   const [isLocked, setLock] = React.useState(false);
   const [isPlaying, setPlaying] = React.useState(true);
   const [scrollTarget, setScrollTarget] = React.useState<HTMLElement>();
+  const [caughtException, setCaughtException] = React.useState<Error>();
 
   const calls = React.useRef<Map<Call['id'], Omit<Call, 'state'>>>(new Map());
   const setCall = ({ state, ...call }: Call) => calls.current.set(call.id, call);
@@ -139,9 +145,11 @@ export const Panel: React.FC<AddonPanelProps> = (props) => {
     [EVENTS.CALL]: setCall,
     [EVENTS.SYNC]: setLog,
     [EVENTS.LOCK]: setLock,
+    [STORY_THREW_EXCEPTION]: setCaughtException,
     [STORY_RENDER_PHASE_CHANGED]: ({ newPhase }) => {
       setLock(false);
       setPlaying(newPhase === 'playing');
+      if (newPhase === 'rendering') setCaughtException(undefined);
     },
   });
 
@@ -157,7 +165,7 @@ export const Panel: React.FC<AddonPanelProps> = (props) => {
   const hasPrevious = log.some((item) => completedStates.includes(item.state));
   const hasNext = log.some((item) => item.state === CallStates.WAITING);
   const hasActive = log.some((item) => item.state === CallStates.ACTIVE);
-  const hasException = log.some((item) => item.state === CallStates.ERROR);
+  const hasException = !!caughtException || log.some((item) => item.state === CallStates.ERROR);
   const isDisabled = isDebuggingEnabled
     ? hasActive || isLocked || (isPlaying && !isDebugging)
     : true;
@@ -184,6 +192,7 @@ export const Panel: React.FC<AddonPanelProps> = (props) => {
         hasNext={hasNext}
         fileName={fileName}
         hasException={hasException}
+        caughtException={caughtException}
         isPlaying={isPlaying}
         calls={calls.current}
         endRef={endRef}

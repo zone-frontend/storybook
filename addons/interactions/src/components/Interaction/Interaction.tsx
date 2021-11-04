@@ -56,9 +56,17 @@ const RowLabel = styled('button', { shouldForwardProp: (prop) => !['call'].inclu
 
 const RowMessage = styled('pre')({
   margin: 0,
-  padding: '8px 10px 8px 30px',
+  padding: '8px 10px 8px 36px',
   fontSize: typography.size.s1,
 });
+
+export const Exception = ({ name, message }: Error) => (
+  <RowContainer call={{ state: CallStates.ERROR } as Call}>
+    <RowMessage>
+      {name}: {message}
+    </RowMessage>
+  </RowContainer>
+);
 
 export const Interaction = ({
   call,

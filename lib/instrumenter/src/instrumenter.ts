@@ -397,7 +397,7 @@ export class Instrumenter {
     });
 
     const handleException = (e: unknown) => {
-      if (e instanceof Error) {
+      if (e instanceof Error && e !== IGNORED_EXCEPTION) {
         const { name, message, stack } = e;
         const exception = { name, message, stack, callId: call.id };
         this.sync({ ...info, state: CallStates.ERROR, exception });
