@@ -3,3 +3,9 @@
 ```base
 npx sb@next init
 ```
+
+> 启动
+
+```base
+yarn storybook
+```
